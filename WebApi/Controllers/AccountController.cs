@@ -1,8 +1,9 @@
 ﻿using AutoMapper;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Repository.Models;
-
+using System.Security.Claims;
 using WebApi.Dto;
 
 
@@ -20,7 +21,7 @@ namespace WebApi.Controllers
             _userManager = userManager;
         }
 
-        [HttpPost]
+        [HttpPost("Register")]
         public async Task<IActionResult> Register([FromBody] UserDto userDto)
         {
 
@@ -34,8 +35,28 @@ namespace WebApi.Controllers
                 return BadRequest();
             }
 
-
             return Ok(); ;
+        }
+
+        [HttpGet("Login")]
+        public async Task<IActionResult> Login(LoginDto loginDto)
+        {
+
+            var user = await _userManager.FindByEmailAsync(loginDto.Email);
+
+            if (user != null &&
+                await _userManager.CheckPasswordAsync(user, loginDto.Password))
+            {
+                var identity = new ClaimsIdentity(IdentityConstants.ApplicationScheme);
+                identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id));
+                identity.AddClaim(new Claim(ClaimTypes.Name, user.UserName));
+
+                await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, new ClaimsPrincipal(identity));
+                return Ok("Logged in");
+            }
+
+            return BadRequest();
+
         }
     }
 }
