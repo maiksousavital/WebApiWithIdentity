@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Repository;
 using Repository.Models;
+using Service.Interfaces;
+using Service.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -20,6 +22,10 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddAutoMapper(typeof(Program));
+
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+
 
 var app = builder.Build();
 

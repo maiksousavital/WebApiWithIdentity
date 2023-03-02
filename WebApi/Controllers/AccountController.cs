@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Repository.Models;
+using Service.Interfaces;
 using System.Security.Claims;
 using WebApi.Dto;
 
@@ -12,13 +13,15 @@ namespace WebApi.Controllers
     [Route("api/[controller]/")]
     public class AccountController : Controller
     {
+        private readonly IEmailService _emailService;
         private readonly IMapper _mapper;
         private readonly UserManager<User> _userManager;
 
-        public AccountController(IMapper mapper, UserManager<User> userManager)
+        public AccountController(IMapper mapper, UserManager<User> userManager, IEmailService emailService)
         {
             _mapper = mapper;
             _userManager = userManager;
+            _emailService = emailService;
         }
 
         [HttpPost("Register")]
@@ -52,7 +55,12 @@ namespace WebApi.Controllers
                 identity.AddClaim(new Claim(ClaimTypes.Name, user.UserName));
 
                 await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, new ClaimsPrincipal(identity));
+
+                _emailService.SendEmail(new Service.Dtos.EmailDto { To = "luther70@ethereal.email", Subject = "Email test" , Body = "Testing email service"});
+
                 return Ok("Logged in");
+
+
             }
 
             return BadRequest();
