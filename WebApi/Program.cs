@@ -19,6 +19,7 @@ builder.Services.AddIdentity<User, IdentityRole>(opt =>
     opt.Password.RequireDigit = true;
     opt.Password.RequireUppercase = true;
     opt.User.RequireUniqueEmail = true;
+    opt.SignIn.RequireConfirmedEmail = true;
 
 }).AddEntityFrameworkStores<Context>()
   .AddDefaultTokenProviders();

@@ -30,50 +30,59 @@ namespace WebApi.Controllers
         [HttpPost("Register")]
         public async Task<IActionResult> Register([FromBody] UserDto userDto)
         {
-
             var user = _mapper.Map<User>(userDto);
 
             var result = await _userManager.CreateAsync(user, userDto.Password);
 
             if (!result.Succeeded)
             {
-
                 return BadRequest();
             }
+
+            var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+            var values = new { token, email = user.Email };
+            var confirmationLink = Url.Action(nameof(ConfirmEmail), "Account", values, Request.Scheme);
+            var message = new EmailDto { To = user.Email, Subject = "Confirmation email link", Body = confirmationLink };
+            _emailService.SendEmail(message);
 
             return Ok(); ;
         }
 
-        [HttpGet("Login")]
-        public async Task<IActionResult> Login(LoginDto loginDto)
+        [HttpGet("VerifyEmail")]
+        public async Task<IActionResult> ConfirmEmail(string token, string email)
         {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+                return BadRequest();
 
-            var user = await _userManager.FindByEmailAsync(loginDto.Email);
+            var result = await _userManager.ConfirmEmailAsync(user, token);
 
-            if (user != null &&
-                await _userManager.CheckPasswordAsync(user, loginDto.Password))
+            return Ok("Email verified.");
+        }
+
+        [HttpGet("Login")]
+        public async Task<IActionResult> Login(LoginDto loginDto, string returnUrl = null)
+        {
+            var result = await _signInManager.PasswordSignInAsync(loginDto.Email, loginDto.Password, loginDto.RememberMe, false);
+
+            if (result.Succeeded)
             {
+                var user = await _userManager.FindByEmailAsync(loginDto.Email);
                 var identity = new ClaimsIdentity(IdentityConstants.ApplicationScheme);
                 identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id));
                 identity.AddClaim(new Claim(ClaimTypes.Name, user.UserName));
 
                 await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, new ClaimsPrincipal(identity));
 
-                _emailService.SendEmail(new Service.Dtos.EmailDto { To = "luther70@ethereal.email", Subject = "Email test", Body = "Testing email service" });
-
                 return Ok("Logged in");
-
-
             }
 
-            return BadRequest();
-
+            return BadRequest("Invalid login attempt.");
         }
 
         [HttpPost("ForgotPassword")]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordDto forgotPassword)
         {
-
             var user = await _userManager.FindByEmailAsync(forgotPassword.Email);
 
             if (user == null)
@@ -87,8 +96,9 @@ namespace WebApi.Controllers
             var message = new EmailDto { To = user.Email, Subject = "Reset Password Token", Body = callBack };
             _emailService.SendEmail(message);
 
-            return Ok("Forgot Password Email Sent");
+            return Ok("Forgot password email was sent");
         }
+
         [HttpPost("ResetPassword")]
         public async Task<IActionResult> ResetPassoword(ResetPasswordDto resetpassword)
         {
@@ -100,7 +110,7 @@ namespace WebApi.Controllers
             var resetPassResult = await _userManager.ResetPasswordAsync(user, resetpassword.Token, resetpassword.Password);
 
             if (!resetPassResult.Succeeded)
-                return Ok();
+                return Ok("Your password was reset.");
 
             return BadRequest("It was not possible to reset your password.");
         }
