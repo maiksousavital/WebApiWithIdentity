@@ -13,8 +13,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<Context>(opts =>
     opts.UseSqlServer(builder.Configuration["ConnectionStrings:DefaultConnection"]));
 
-builder.Services.AddIdentity<User, IdentityRole>()
-    .AddEntityFrameworkStores<Context>();
+builder.Services.AddIdentity<User, IdentityRole>(opt =>
+{
+    opt.Password.RequiredLength = 6;
+    opt.Password.RequireDigit = true;
+    opt.Password.RequireUppercase = true;
+    opt.User.RequireUniqueEmail = true;
+
+}).AddEntityFrameworkStores<Context>()
+  .AddDefaultTokenProviders();
+
+builder.Services.Configure<DataProtectionTokenProviderOptions>(opt =>
+   opt.TokenLifespan = TimeSpan.FromHours(2));
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
