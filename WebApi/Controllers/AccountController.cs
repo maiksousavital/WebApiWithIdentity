@@ -63,7 +63,7 @@ namespace WebApi.Controllers
         [HttpGet("Login")]
         public async Task<IActionResult> Login(LoginDto loginDto, string returnUrl = null)
         {
-            var result = await _signInManager.PasswordSignInAsync(loginDto.Email, loginDto.Password, loginDto.RememberMe, false);
+            var result = await _signInManager.PasswordSignInAsync(loginDto.Email, loginDto.Password, loginDto.RememberMe, lockoutOnFailure: true);
 
             if (result.Succeeded)
             {
@@ -77,7 +77,22 @@ namespace WebApi.Controllers
                 return Ok("Logged in");
             }
 
-            return BadRequest("Invalid login attempt.");
+            if (result.IsLockedOut)
+            {
+                var forgotPasswordLink = this.Url.Action(nameof(ResetPassoword), "Account", new { }, Request.Scheme);
+                var content = string.Format("Your account is locked out, to reset your password, please click this link: {0}", forgotPasswordLink);
+
+                var message = new EmailDto { To = loginDto.Email, Subject = "Locked out account information", Body = content };
+                _emailService.SendEmail(message);
+
+                return BadRequest("This account is locked out.");
+
+            }
+            else
+            {
+
+                return BadRequest("Invalid login attempt.");
+            }
         }
 
         [HttpPost("ForgotPassword")]
