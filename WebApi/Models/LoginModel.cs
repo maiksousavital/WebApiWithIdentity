@@ -1,9 +1,9 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Xml.Linq;
 
-namespace WebApi.Dto
+namespace WebApi.Models
 {
-    public class LoginDto
+    public class LoginModel
     {
         [Required]
         [EmailAddress]

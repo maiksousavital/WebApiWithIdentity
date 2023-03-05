@@ -1,8 +1,8 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace WebApi.Dto
+namespace WebApi.Models
 {
-    public class ForgotPasswordDto
+    public class ForgotPasswordModel
     {
         [Required]
         [EmailAddress]

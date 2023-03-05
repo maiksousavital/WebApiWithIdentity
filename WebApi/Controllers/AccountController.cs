@@ -7,12 +7,12 @@ using Service.Dtos;
 using Service.Interfaces;
 using System.Security.Claims;
 using WebApi.Dto;
-
+using WebApi.Models;
 
 namespace WebApi.Controllers
 {
     [Route("api/[controller]/")]
-    public class AccountController : Controller
+    public class AccountController : ControllerBase
     {
         private readonly IEmailService _emailService;
         private readonly IMapper _mapper;
@@ -30,6 +30,11 @@ namespace WebApi.Controllers
         [HttpPost("Register")]
         public async Task<IActionResult> Register([FromBody] UserDto userDto)
         {
+            var userExists = await _userManager.FindByEmailAsync(userDto.Email);
+
+            if (userExists != null)
+                return StatusCode(StatusCodes.Status500InternalServerError, new { Status = "Error", Message = "User already exists!" });
+
             var user = _mapper.Map<User>(userDto);
 
             var result = await _userManager.CreateAsync(user, userDto.Password);
@@ -48,20 +53,8 @@ namespace WebApi.Controllers
             return Ok(); ;
         }
 
-        [HttpGet("VerifyEmail")]
-        public async Task<IActionResult> ConfirmEmail(string token, string email)
-        {
-            var user = await _userManager.FindByEmailAsync(email);
-            if (user == null)
-                return BadRequest();
-
-            var result = await _userManager.ConfirmEmailAsync(user, token);
-
-            return Ok("Email verified.");
-        }
-
         [HttpGet("Login")]
-        public async Task<IActionResult> Login(LoginDto loginDto, string returnUrl = null)
+        public async Task<IActionResult> Login(LoginModel loginDto, string returnUrl = null)
         {
             var result = await _signInManager.PasswordSignInAsync(loginDto.Email, loginDto.Password, loginDto.RememberMe, lockoutOnFailure: true);
 
@@ -88,15 +81,36 @@ namespace WebApi.Controllers
                 return BadRequest("This account is locked out.");
 
             }
+            //else if (result.RequiresTwoFactor)
+            //{
+            //    return RedirectToAction(nameof(LoginTwoStep), new { loginDto.Email, loginDto.RememberMe, returnUrl });
+            //}
             else
             {
-
                 return BadRequest("Invalid login attempt.");
             }
         }
 
+        //[HttpPost("LoginTwoStep")]
+        //public async Task<IActionResult> LoginTwoStep()
+        //{
+
+        //}
+
+        [HttpGet("VerifyEmail")]
+        public async Task<IActionResult> ConfirmEmail(string token, string email)
+        {
+            var user = await _userManager.FindByEmailAsync(email);
+            if (user == null)
+                return BadRequest();
+
+            var result = await _userManager.ConfirmEmailAsync(user, token);
+
+            return Ok("Email verified.");
+        }
+
         [HttpPost("ForgotPassword")]
-        public async Task<IActionResult> ForgotPassword(ForgotPasswordDto forgotPassword)
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordModel forgotPassword)
         {
             var user = await _userManager.FindByEmailAsync(forgotPassword.Email);
 
@@ -115,7 +129,7 @@ namespace WebApi.Controllers
         }
 
         [HttpPost("ResetPassword")]
-        public async Task<IActionResult> ResetPassoword(ResetPasswordDto resetpassword)
+        public async Task<IActionResult> ResetPassoword(ResetPasswordModel resetpassword)
         {
             var user = await _userManager.FindByEmailAsync(resetpassword.Email);
 
