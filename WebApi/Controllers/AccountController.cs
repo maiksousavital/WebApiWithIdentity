@@ -56,39 +56,49 @@ namespace WebApi.Controllers
         [HttpGet("Login")]
         public async Task<IActionResult> Login(LoginModel loginDto, string returnUrl = null)
         {
-            var result = await _signInManager.PasswordSignInAsync(loginDto.Email, loginDto.Password, loginDto.RememberMe, lockoutOnFailure: true);
 
-            if (result.Succeeded)
+            var user = await _userManager.FindByEmailAsync(loginDto.Email);
+
+            if (user != null)
             {
-                var user = await _userManager.FindByEmailAsync(loginDto.Email);
-                var identity = new ClaimsIdentity(IdentityConstants.ApplicationScheme);
-                identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id));
-                identity.AddClaim(new Claim(ClaimTypes.Name, user.UserName));
+                if(!user.EmailConfirmed)
+                    return BadRequest("Invalid login attempt. You must have a confirmed email account.");
 
-                await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, new ClaimsPrincipal(identity));
+                var result = await _signInManager.PasswordSignInAsync(loginDto.Email, loginDto.Password, loginDto.RememberMe, lockoutOnFailure: true);
+                if (result.Succeeded)
+                {
+                    var identity = new ClaimsIdentity(IdentityConstants.ApplicationScheme);
+                    identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id));
+                    identity.AddClaim(new Claim(ClaimTypes.Name, user.UserName));
 
-                return Ok("Logged in");
+                    await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, new ClaimsPrincipal(identity));
+
+                    return Ok("Logged in");
+                }
+
+                if (result.IsLockedOut)
+                {
+                    var forgotPasswordLink = this.Url.Action(nameof(ResetPassoword), "Account", new { }, Request.Scheme);
+                    var content = string.Format("Your account is locked out, to reset your password, please click this link: {0}", forgotPasswordLink);
+
+                    var message = new EmailDto { To = loginDto.Email, Subject = "Locked out account information", Body = content };
+                    _emailService.SendEmail(message);
+
+                    return BadRequest("This account is locked out.");
+
+                }
+                //else if (result.RequiresTwoFactor)
+                //{
+                //    return RedirectToAction(nameof(LoginTwoStep), new { loginDto.Email, loginDto.RememberMe, returnUrl });
+                //}
+                else
+                {
+                    return BadRequest("Invalid login attempt.");
+                }
             }
 
-            if (result.IsLockedOut)
-            {
-                var forgotPasswordLink = this.Url.Action(nameof(ResetPassoword), "Account", new { }, Request.Scheme);
-                var content = string.Format("Your account is locked out, to reset your password, please click this link: {0}", forgotPasswordLink);
+            return BadRequest("Invalid login attempt.");
 
-                var message = new EmailDto { To = loginDto.Email, Subject = "Locked out account information", Body = content };
-                _emailService.SendEmail(message);
-
-                return BadRequest("This account is locked out.");
-
-            }
-            //else if (result.RequiresTwoFactor)
-            //{
-            //    return RedirectToAction(nameof(LoginTwoStep), new { loginDto.Email, loginDto.RememberMe, returnUrl });
-            //}
-            else
-            {
-                return BadRequest("Invalid login attempt.");
-            }
         }
 
         //[HttpPost("LoginTwoStep")]
