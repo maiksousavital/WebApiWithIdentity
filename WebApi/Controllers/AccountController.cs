@@ -65,6 +65,7 @@ namespace WebApi.Controllers
                     return BadRequest("Invalid login attempt. You must have a confirmed email account.");
 
                 var result = await _signInManager.PasswordSignInAsync(loginDto.Email, loginDto.Password, loginDto.RememberMe, lockoutOnFailure: true);
+
                 if (result.Succeeded)
                 {
                     var identity = new ClaimsIdentity(IdentityConstants.ApplicationScheme);
@@ -93,11 +94,11 @@ namespace WebApi.Controllers
                 //}
                 else
                 {
-                    return BadRequest("Invalid login attempt.");
+                    return BadRequest("Invalid login attempt. Invalid email or password.");
                 }
             }
 
-            return BadRequest("Invalid login attempt.");
+            return BadRequest("Invalid login attempt. Invalid email or password.");
 
         }
 
