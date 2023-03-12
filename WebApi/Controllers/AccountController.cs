@@ -2,11 +2,14 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.WebUtilities;
 using Repository.Models;
 using Service.Dtos;
 using Service.Interfaces;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using WebApi.Dto;
+using WebApi.Handlers;
 using WebApi.Models;
 
 namespace WebApi.Controllers
@@ -18,13 +21,15 @@ namespace WebApi.Controllers
         private readonly IMapper _mapper;
         private readonly UserManager<User> _userManager;
         private readonly SignInManager<User> _signInManager;
+        private readonly JwtHandler _jwtHandler;
 
-        public AccountController(IMapper mapper, UserManager<User> userManager, SignInManager<User> signInManager, IEmailService emailService)
+        public AccountController(IMapper mapper, UserManager<User> userManager, SignInManager<User> signInManager, IEmailService emailService, JwtHandler jwtHandler)
         {
             _mapper = mapper;
             _userManager = userManager;
             _emailService = emailService;
             _signInManager = signInManager;
+            _jwtHandler = jwtHandler;
         }
 
         [HttpPost("Register")]
@@ -50,31 +55,37 @@ namespace WebApi.Controllers
             var message = new EmailDto { To = user.Email, Subject = "Confirmation email link", Body = confirmationLink };
             _emailService.SendEmail(message);
 
-            return Ok(); ;
+            return Ok("User registered."); ;
         }
 
-        [HttpGet("Login")]
-        public async Task<IActionResult> Login(LoginModel loginDto, string returnUrl = null)
+        [HttpPost("Login")]
+        public async Task<IActionResult> Login([FromBody] LoginModel loginModel)
         {
 
-            var user = await _userManager.FindByEmailAsync(loginDto.Email);
+            var user = await _userManager.FindByEmailAsync(loginModel.Email);
 
             if (user != null)
             {
-                if(!user.EmailConfirmed)
+                if (!user.EmailConfirmed)
                     return BadRequest("Invalid login attempt. You must have a confirmed email account.");
 
-                var result = await _signInManager.PasswordSignInAsync(loginDto.Email, loginDto.Password, loginDto.RememberMe, lockoutOnFailure: true);
+                var result = await _signInManager.PasswordSignInAsync(loginModel.Email, loginModel.Password, loginModel.RememberMe, lockoutOnFailure: true);
 
                 if (result.Succeeded)
                 {
-                    var identity = new ClaimsIdentity(IdentityConstants.ApplicationScheme);
-                    identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id));
-                    identity.AddClaim(new Claim(ClaimTypes.Name, user.UserName));
+                    //var identity = new ClaimsIdentity(IdentityConstants.ApplicationScheme);
+                    //identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, user.Id));
+                    //identity.AddClaim(new Claim(ClaimTypes.Name, user.UserName));
 
-                    await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, new ClaimsPrincipal(identity));
+                    //await HttpContext.SignInAsync(IdentityConstants.ApplicationScheme, new ClaimsPrincipal(identity));
 
-                    return Ok("Logged in");
+                    var signingCredentials = _jwtHandler.GetSigningCredentials();
+                    var claims = _jwtHandler.GetClaims(user);
+                    var tokenOptions = _jwtHandler.GenerateTokenOptions(signingCredentials, claims);
+                    var token = new JwtSecurityTokenHandler().WriteToken(tokenOptions);
+
+                    //Return url can be configurable in an admin section for example
+                    return Ok(new LoginResponse { ReturnUrl = "/dashboard", Token = token, IsAuthSuccessful = true });
                 }
 
                 if (result.IsLockedOut)
@@ -82,7 +93,7 @@ namespace WebApi.Controllers
                     var forgotPasswordLink = this.Url.Action(nameof(ResetPassoword), "Account", new { }, Request.Scheme);
                     var content = string.Format("Your account is locked out, to reset your password, please click this link: {0}", forgotPasswordLink);
 
-                    var message = new EmailDto { To = loginDto.Email, Subject = "Locked out account information", Body = content };
+                    var message = new EmailDto { To = loginModel.Email, Subject = "Locked out account information", Body = content };
                     _emailService.SendEmail(message);
 
                     return BadRequest("This account is locked out.");
@@ -121,26 +132,32 @@ namespace WebApi.Controllers
         }
 
         [HttpPost("ForgotPassword")]
-        public async Task<IActionResult> ForgotPassword(ForgotPasswordModel forgotPassword)
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordModel forgotPassword)
         {
             var user = await _userManager.FindByEmailAsync(forgotPassword.Email);
 
             if (user == null)
-                return BadRequest();
+                return BadRequest("Invalid request.");
 
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
 
             var values = new { token, email = user.Email };
-            var callBack = this.Url.Action(nameof(ResetPassoword), "Account", values, Request.Scheme);
+            var param = new Dictionary<string, string?>
+                    {
+                        {"token", token },
+                        {"email", forgotPassword.Email }
+                    };
+            var callback = QueryHelpers.AddQueryString(forgotPassword.ClientUrl, param);
+            //var callBack = this.Url.Action(nameof(ResetPassoword), "Account", values, Request.Scheme);
 
-            var message = new EmailDto { To = user.Email, Subject = "Reset Password Token", Body = callBack };
+            var message = new EmailDto { To = user.Email, Subject = "Reset Password Token", Body = callback };
             _emailService.SendEmail(message);
 
-            return Ok("Forgot password email was sent");
+            return Ok("The link has been sent, please check your email to reset your password.");
         }
 
         [HttpPost("ResetPassword")]
-        public async Task<IActionResult> ResetPassoword(ResetPasswordModel resetpassword)
+        public async Task<IActionResult> ResetPassoword([FromBody] ResetPasswordModel resetpassword)
         {
             var user = await _userManager.FindByEmailAsync(resetpassword.Email);
 
