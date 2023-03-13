@@ -141,19 +141,21 @@ namespace WebApi.Controllers
 
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
 
-            var values = new { token, email = user.Email };
             var param = new Dictionary<string, string?>
-                    {
-                        {"token", token },
-                        {"email", forgotPassword.Email }
-                    };
+                {
+                    {"token", token },
+                    {"email", forgotPassword.Email }
+                };
+
             var callback = QueryHelpers.AddQueryString(forgotPassword.ClientUrl, param);
+
+            //var values = new { token, email = user.Email };
             //var callBack = this.Url.Action(nameof(ResetPassoword), "Account", values, Request.Scheme);
 
             var message = new EmailDto { To = user.Email, Subject = "Reset Password Token", Body = callback };
             _emailService.SendEmail(message);
 
-            return Ok("The link has been sent, please check your email to reset your password.");
+            return Ok(new {message= "The link has been sent, please check your email to reset your password." });
         }
 
         [HttpPost("ResetPassword")]
