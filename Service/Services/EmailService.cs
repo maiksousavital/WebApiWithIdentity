@@ -33,7 +33,7 @@ namespace Service.Services
             smtp.Authenticate(_configuration.GetSection("EmailConfiguration:Username").Value,
                 _configuration.GetSection("EmailConfiguration:Password").Value);
 
-            smtp.Send(email);
+            var returnEmail = smtp.Send(email);
             smtp.Disconnect(true);
         }
     }

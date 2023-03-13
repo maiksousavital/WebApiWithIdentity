@@ -1,13 +1,12 @@
 ﻿using AutoMapper;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Repository.Models;
 using Service.Dtos;
 using Service.Interfaces;
+using System.ComponentModel.DataAnnotations;
 using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
 using WebApi.Dto;
 using WebApi.Handlers;
 using WebApi.Models;
@@ -137,7 +136,7 @@ namespace WebApi.Controllers
             var user = await _userManager.FindByEmailAsync(forgotPassword.Email);
 
             if (user == null)
-                return BadRequest("Invalid request.");
+                return BadRequest(new { Errors = new List<string> { "Invalid request" } });
 
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
 
@@ -152,10 +151,15 @@ namespace WebApi.Controllers
             //var values = new { token, email = user.Email };
             //var callBack = this.Url.Action(nameof(ResetPassoword), "Account", values, Request.Scheme);
 
-            var message = new EmailDto { To = user.Email, Subject = "Reset Password Token", Body = callback };
+            var message = new EmailDto
+            {
+                To = user.Email,
+                Subject = "Reset Password Token",
+                Body = callback
+            };
             _emailService.SendEmail(message);
 
-            return Ok(new {message= "The link has been sent, please check your email to reset your password." });
+            return Ok(new { message = "The link has been sent, please check your email to reset your password." });
         }
 
         [HttpPost("ResetPassword")]
@@ -166,15 +170,24 @@ namespace WebApi.Controllers
             if (user == null)
                 return BadRequest("User not found");
 
-            //if(!string.Equals( resetpassword.Password, resetpassword.ConfirmPassword))
-            //    return BadRequest();
+            var results = new List<ValidationResult>();
+            var isValid = Validator.TryValidateObject(resetpassword, new ValidationContext(resetpassword), results);
+
+            if (!isValid)
+            {
+                var errors = results.Select(x => x.ErrorMessage);
+                return BadRequest(new { Errors = errors });
+            }
 
             var resetPassResult = await _userManager.ResetPasswordAsync(user, resetpassword.Token, resetpassword.Password);
 
-            if (resetPassResult.Succeeded)
-                return Ok();
+            if (!resetPassResult.Succeeded)
+            {
+                var errors = resetPassResult.Errors.Select(x => x.Description);
+                return BadRequest(new { Errors = errors });
+            }
 
-            return BadRequest(resetPassResult);
+            return Ok();
         }
     }
 }
