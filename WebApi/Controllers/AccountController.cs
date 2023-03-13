@@ -166,12 +166,15 @@ namespace WebApi.Controllers
             if (user == null)
                 return BadRequest("User not found");
 
+            //if(!string.Equals( resetpassword.Password, resetpassword.ConfirmPassword))
+            //    return BadRequest();
+
             var resetPassResult = await _userManager.ResetPasswordAsync(user, resetpassword.Token, resetpassword.Password);
 
-            if (!resetPassResult.Succeeded)
-                return Ok("Your password was reset.");
+            if (resetPassResult.Succeeded)
+                return Ok();
 
-            return BadRequest("It was not possible to reset your password.");
+            return BadRequest(resetPassResult);
         }
     }
 }
